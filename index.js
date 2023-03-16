@@ -69,6 +69,11 @@ app.post("/login", async (request, response) => {
   }
 });
 
+
+app.get('/',(req,res)=>{
+  res.send('Deployment Done')
+})
+
 // ? SIGN UP USER
 app.post("/create/user", async (req, res) => {
   const { name, contact, dob, email, password, conformPassword } = req.body;
