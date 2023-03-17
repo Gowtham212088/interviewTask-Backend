@@ -6,6 +6,13 @@ import bcrypt from "bcrypt";
 import jsonwebtocken from "jsonwebtoken";
 import { request } from "https";
 import { response } from "express";
+import {
+  getAllUsers,
+  modifyData,
+  deleteSingleUserData,
+  userRegistration,
+  findOneData,
+} from "./helper.js";
 
 dotenv.config();
 
@@ -13,15 +20,14 @@ dotenv.config();
 
 const app = express();
 
+// ? CUSTOM MIDDLEWARE
+
 const authorisation = async (request, response, next) => {
   const token = request.header("token");
 
   const verifyToken = jsonwebtocken.verify(token, process.env.privateKey);
-
-  const checkUserExisting = await client
-    .db("auth")
-    .collection("register")
-    .findOne({ email: verifyToken.email });
+  const inputData = { email: verifyToken.email };
+  const checkUserExisting = await findOneData(inputData);
 
   if (verifyToken && checkUserExisting) {
     next();
@@ -37,29 +43,24 @@ const PORT = 7000;
 
 const MONGO_URL = process.env.MONGO_URL;
 
-const client = await createConnection();
+export const client = await createConnection();
 
 // ! LOGIN VERIFICATION
 
 app.post("/login", async (request, response) => {
   const { phone, password } = request.body;
-  console.log(password);
-  const signIn = await client
-    .db("auth")
-    .collection("register")
-    .findOne({ contact: phone });
+  const queryInput = { contact: phone };
+  //? MONGODB QUERY FUNCTION
+  const signIn = await findOneData(queryInput);
   if (!signIn) {
     response.status(401).send("Invalid Credentials");
   } else {
     const storedPassword = signIn.hashPassword;
     const isPasswordMatch = await bcrypt.compare(password, storedPassword);
-    console.log(isPasswordMatch);
     if (!isPasswordMatch) {
       response.status(401).send("Invalid credentials");
     } else {
-      console.log(signIn.email);
       const token = await tokenGenerator(signIn.email);
-      console.log(isPasswordMatch);
       response.send({
         message: `Login Successful`,
         token: token,
@@ -69,16 +70,14 @@ app.post("/login", async (request, response) => {
   }
 });
 
-
-app.get('/',(req,res)=>{
-  res.send('Deployment Done')
-})
+app.get("/", (req, res) => {
+  res.send("Deployment Success");
+});
 
 // ? SIGN UP USER
 app.post("/create/user", async (req, res) => {
   const { name, contact, dob, email, password, conformPassword } = req.body;
 
-  console.log({ password, conformPassword });
   const hashPassword = await createPassword(password);
 
   const hashConformPassword = await createPassword(conformPassword);
@@ -91,16 +90,11 @@ app.post("/create/user", async (req, res) => {
     hashPassword,
     hashConformPassword,
   };
-  console.log(signUpData);
 
   if (password !== conformPassword) {
     res.status("401").send("Password not Matching");
   } else {
-    const registerUser = await client
-      .db("auth")
-      .collection("register")
-      .insertOne(signUpData);
-    console.log(signUpData);
+    const registerUser = await userRegistration(signUpData);
   }
 
   res.send("Registration Successful");
@@ -131,11 +125,7 @@ app.post("/createUser/byAdmin", async (req, res) => {
     if (password !== conformPassword) {
       res.status("401").send("Password not Matching");
     } else {
-      const registerUser = await client
-        .db("auth")
-        .collection("register")
-        .insertOne(signUpData);
-      console.log(registerUser);
+      const registerUser = await userRegistration(signUpData);
     }
   } catch (error) {
     console.log(error.message);
@@ -145,29 +135,18 @@ app.post("/createUser/byAdmin", async (req, res) => {
 });
 
 // ? GET ALL USERS
+
 app.get("/users", authorisation, async (request, response) => {
   const getDatas = request.headers;
-
   const { token } = getDatas;
-
-  console.log(token);
-
   const crackData = await jsonwebtocken.verify(token, process.env.privateKey);
   const { email } = crackData;
-  console.log(email);
-  const checkUserExists = await client
-    .db("auth")
-    .collection("register")
-    .findOne({ email: email });
-
+  const inputData = { email: email };
+  const checkUserExists = await findOneData(inputData);
   if (!checkUserExists) {
     response.status(401).send("Unauthorized user");
   } else {
-    const getAllUserData = await client
-      .db("auth")
-      .collection("register")
-      .find()
-      .toArray();
+    const getAllUserData = await getAllUsers();
     response.send(getAllUserData);
   }
 });
@@ -190,32 +169,23 @@ app.put("/editUsers/:id", async (request, response) => {
     hashPassword: hashPassword,
     hashConformPassword: hashConformPassword,
   };
-  console.log(id);
   const documentId = await new ObjectId(id);
-  const updateDatas = await client
-    .db("auth")
-    .collection("register")
-    .replaceOne({ _id: documentId }, updatedData);
-  console.log(updateDatas);
+  const updateDatas = await modifyData(documentId, updatedData);
   response.send(updateDatas);
 }),
   // ? DELETE TABLES DATA BY ID
 
   app.delete("/deleteUsers/:id", async (request, response) => {
     const { id } = request.params;
-    console.log(id);
     const hashPassword = await createPassword("12345678");
 
     const hashConformPassword = await createPassword("12345678");
 
-    console.log(id);
     const documentId = await new ObjectId(id);
-    const updateDatas = await client
-      .db("auth")
-      .collection("register")
-      .deleteOne({ _id: documentId });
-    console.log(updateDatas);
-    response.send(updateDatas);
+    const deleteDocId = { _id: documentId };
+
+    const deleteUserData = await deleteSingleUserData(deleteDocId);
+    response.send(deleteUserData);
   }),
   app.listen(PORT, () => console.log(`server started on port ${PORT} `));
 
