@@ -1,4 +1,9 @@
 import { client } from "./index.js";
+// import { MongoClient, ObjectId } from "mongodb";
+
+// export const MONGO_URL = process.env.MONGO_URL;
+
+// export const client = await createConnection();
 
 //! QUERY FUNCTIONS
 //? GETTING ALL USERS FROM THE COLLECTION
